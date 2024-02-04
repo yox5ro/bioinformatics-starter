@@ -1,4 +1,10 @@
 {
   "index": "はじめに",
-  "linux-cli": "Linux コマンドライン入門"
+  "overview": "バイオインフォマティクス概観",
+  "linux-cli": "Linux コマンドライン入門",
+  "troubleshooting": "トラブルシューティングの方法",
+  "quality-control": "クオリティコントロール",
+  "alignment": "アラインメント",
+  "snp-call": "SNPコール",
+  "population-structure": "集団構造解析"
 }
