@@ -7,7 +7,8 @@ module.exports = withNextra({
   images: {
     unoptimized: true
   },
-  output: 'export'
+  output: 'export',
+  assetPrefix: process.env.GITHUB_PAGES ? '/bioinformatics-starter' : '',
 })
  
 // If you have other Next.js configurations, you can pass them as the parameter:
