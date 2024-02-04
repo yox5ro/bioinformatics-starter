@@ -19,6 +19,11 @@ $ npm i
 
 # 開発用サーバーの立ち上げ
 $ npm run dev
+
+# ローカルでビルド
+$ npm run build
+# ビルドしたものの確認
+$ npm run serve
 ```
 
 ### デプロイ

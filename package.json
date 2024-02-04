@@ -9,6 +9,9 @@
   "scripts": {
     "dev": "next",
     "build": "next build",
-    "start": "next start"
+    "serve": "serve ./out"
+  },
+  "devDependencies": {
+    "serve": "^14.2.1"
   }
 }
