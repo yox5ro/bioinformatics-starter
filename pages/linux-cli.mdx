@@ -52,7 +52,74 @@ $ ssh <ユーザー名>@<サーバーの IP アドレスまたはドメイン>
 
 CLI とは、[SSH によるリモートログイン](#ssh-によるリモートログイン)で示したようなコマンドでコンピュータを操作するためのインターフェースである。コマンドをシェル (Zsh、Bashなど) に渡すことでコンピュータを動作させることができる。
 
+<Callout>
+Linux には CLI も GUI も存在しますが、バイオインフォマティクス解析においては CLI がよく用いられます。理由は以下の通りです。
+- テキスト処理が楽
+- 配布されている解析ソフトウェアが CLI であることが多い 
+</Callout>
+
 ## Linux コマンドラインの練習
+
+## ファイルシステムの構造
+ここでは、フォルダのことをディレクトリ (directory) と呼びます。
+
+Linux のディレクトリは以下のような**木構造**の構成になっていることが多いです。
+```
+$ tree -L 1 /
+/
+├── Docker
+├── bin -> usr/bin
+├── boot
+├── data
+├── dev
+├── etc
+├── home
+├── init
+├── lib -> usr/lib
+├── lib32 -> usr/lib32
+├── lib64 -> usr/lib64
+├── libx32 -> usr/libx32
+├── lost+found
+├── media
+├── mnt
+├── opt
+├── proc
+├── root
+├── run
+├── sbin -> usr/sbin
+├── snap
+├── srv
+├── sys
+├── tmp
+├── usr
+└── var
+```
+
+`/` はルートディレクトリと呼ばれます。任意のディレクトリは `/<path>/<to>/<directory>` のように表現されます。例えば以下のような形式です。
+```
+$ echo $HOME
+/home/username # 人によって違う
+```
+
+ここで、`$HOME` はユーザーのホームディレクトリを表しています。ユーザーのホームディレクトリは `/home/<username>` になっています。
+
+Linux では、ユーザーはあるディレクトリをカレントディレクトリとして持ちます。カレントディレクトリは `pwd` コマンドで確認することができます。
+```
+$ pwd
+/home/username # 人によって違う
+```
+
+カレントディレクトリとは「エクスプローラー (Finder) で現在開いているフォルダ」だと思ってもらっても構いません。
+
+<Callout>
+`$` はプロンプトを表しています。プロンプトはコマンドを入力するための場所です。プロンプトの後ろに続く文字列がコマンドです。
+
+`#` はこのドキュメント上でのコメントを表しています。説明書きのために使っているので、実際にコマンドを入力する際には `#` 以降の文字列は無視してください。
+</Callout>
+
+<Callout type="warning">
+ホームディレクトリ以下以外のディレクトリ (例えば、`/boot` や `/dev` など) にはシステムの起動やデバイスの管理に関わるファイルが格納されているため、ユーザーが勝手にファイルを変更することは避けるべきです。下手をするとシステムが起動しなくなる可能性があります。
+</Callout>
 
 ### ディレクトリを作成する
 `mkdir` コマンドを使う。以下のコマンドでカレントディレクトリに `<directory-name>` という名前のディレクトリが作成される。 
@@ -66,13 +133,495 @@ $ mkdir <directory-name>
 $ mkdir my-project
 ```
 
+### ディレクトリを移動する
+`cd` コマンドを使う。以下のコマンドでカレントディレクトリを `<directory-name>` に移動する。
+
+```
+$ cd <directory-name>
+```
+
+例
+```
+$ cd my-project
+$ pwd
+/home/<username>/my-project
+```
+
+`.` はカレントディレクトリを表し、`..` は親ディレクトリを表します。以下のコマンドでカレントディレクトリを親ディレクトリに移動することができます。
+
+例
+```
+$ pwd
+/home/<username>/my-project
+$ cd ..
+$ pwd
+/home/<username>
+```
+
+### ファイルを作成する
+`touch` コマンドを使う。`touch` コマンドは正確にはファイルを作成するコマンドではなく、ファイルのタイムスタンプを更新するコマンドである。しかし、ファイルが存在しない場合は新規にファイルを作成する。
+
+```
+$ touch <file-name>
+```
+
+例
+```
+$ touch my-file.txt
+```
+
+### カレントディレクトリのファイルとディレクトリを一覧する
+`ls` コマンドを使う。以下のコマンドでカレントディレクトリのファイルとディレクトリが一覧される。
+
+```
+$ ls
+```
+
+### Linux コマンドの構造
+
+コマンドはざっくり以下の形式であることが多い。
+```
+$ <コマンド> <コマンドのオプション> <コマンドのオプションの引数> <サブコマンド> <サブコマンドのオプション> <サブコマンドのオプションの引数> <(サブ)コマンドの引数>
+```
+
+`<コマンド>` 以外の各要素は省略可能であり、コマンドの動作を変更するために用いられる。
+
+例 カレントディレクトリのファイルを一覧する。
+```
+$ ls
+# ls というコマンドを用いる
+```
+
+例 カレントディレクトリにある`my-project`というディレクトリのファイルを一覧する
+```
+$ ls my-project
+# ls というコマンドに my-project という引数を渡す
+```
+
+例 カレントディレクトリのファイルとフォルダを一覧し、それに詳細情報を添付する
+```
+$ ls -l
+# ls というコマンドに -l というオプションを渡す
+```
+
+例 カレントディレクトリのファイルとフォルダを、隠しファイル、ディレクトリを含めて一覧する。
+```
+$ ls -a
+# ls というコマンドに -a というオプションを渡す
+```
+
+例 カレントディレクトリのファイルとフォルダを、隠しファイル、ディレクトリを含めて一覧し、それに詳細情報を添付する。
+```
+$ ls -la
+# ls というコマンドに -a と -l というオプションを渡す
+```
+
+## コマンドの使い方の調べ方
+
+コマンドの使い方を調べるためには、`man` コマンドを使う。`man` コマンドはマニュアルページを表示するコマンドであり、コマンドの使い方やオプションの説明を確認することができる。
+
+```
+$ man ls
+```
+この画面が表示される。
+
+```
+LS(1)                                                                                User Commands                                                                               LS(1)
+
+NAME
+       ls - list directory contents
+
+SYNOPSIS
+       ls [OPTION]... [FILE]...
+
+DESCRIPTION
+       List information about the FILEs (the current directory by default).  Sort entries alphabetically if none of -cftuvSUX nor --sort is specified.
+
+       Mandatory arguments to long options are mandatory for short options too.
+
+       -a, --all
+              do not ignore entries starting with .
+
+       -A, --almost-all
+              do not list implied . and ..
+
+       --author
+              with -l, print the author of each file
+
+       -b, --escape
+              print C-style escapes for nongraphic characters
+
+       --block-size=SIZE
+              with -l, scale sizes by SIZE when printing them; e.g., '--block-size=M'; see SIZE format below
+
+       -B, --ignore-backups
+              do not list implied entries ending with ~
+
+       -c     with -lt: sort by, and show, ctime (time of last modification of file status information); with -l: show ctime and sort by name; otherwise: sort by ctime, newest first
+
+       -C     list entries by columns
+
+       --color[=WHEN]
+ Manual page ls(1) line 1 (press h for help or q to quit)
+```
+
+このとき、j キーを押すと下にスクロールし、k キーを押すと上にスクロールする。q キーを押すとマニュアルページを閉じることができる。
+
+また、多くのコマンドには `--help` というオプションがついているので、以下のようにして使い方を調べることもできる。
+
+```
+$ ls --help
+$ ls --help
+Usage: ls [OPTION]... [FILE]...
+List information about the FILEs (the current directory by default).
+Sort entries alphabetically if none of -cftuvSUX nor --sort is specified.
+
+Mandatory arguments to long options are mandatory for short options too.
+  -a, --all                  do not ignore entries starting with .
+  -A, --almost-all           do not list implied . and ..
+      --author               with -l, print the author of each file
+  -b, --escape               print C-style escapes for nongraphic characters
+      --block-size=SIZE      with -l, scale sizes by SIZE when printing them;
+                               e.g., '--block-size=M'; see SIZE format below
+  -B, --ignore-backups       do not list implied entries ending with ~
+  -c                         with -lt: sort by, and show, ctime (time of last
+                               modification of file status information);
+                               with -l: show ctime and sort by name;
+                               otherwise: sort by ctime, newest first
+  -C                         list entries by columns
+      --color[=WHEN]         colorize the output; WHEN can be 'always' (default
+                               if omitted), 'auto', or 'never'; more info below
+  -d, --directory            list directories themselves, not their contents
+  -D, --dired                generate output designed for Emacs' dired mode
+  -f                         do not sort, enable -aU, disable -ls --color
+  -F, --classify             append indicator (one of */=>@|) to entries
+      --file-type            likewise, except do not append '*'
+      --format=WORD          across -x, commas -m, horizontal -x, long -l,
+                               single-column -1, verbose -l, vertical -C
+      --full-time            like -l --time-style=full-iso
+  -g                         like -l, but do not list owner
+      --group-directories-first
+                             group directories before files;
+                               can be augmented with a --sort option, but any
+                               use of --sort=none (-U) disables grouping
+  -G, --no-group             in a long listing, don't print group names
+  -h, --human-readable       with -l and -s, print sizes like 1K 234M 2G etc.
+      --si                   likewise, but use powers of 1000 not 1024
+  -H, --dereference-command-line
+                             follow symbolic links listed on the command line
+      --dereference-command-line-symlink-to-dir
+                             follow each command line symbolic link
+                               that points to a directory
+      --hide=PATTERN         do not list implied entries matching shell PATTERN
+                               (overridden by -a or -A)
+      --hyperlink[=WHEN]     hyperlink file names; WHEN can be 'always'
+                               (default if omitted), 'auto', or 'never'
+      --indicator-style=WORD  append indicator with style WORD to entry names:
+                               none (default), slash (-p),
+                               file-type (--file-type), classify (-F)
+  -i, --inode                print the index number of each file
+  -I, --ignore=PATTERN       do not list implied entries matching shell PATTERN
+  -k, --kibibytes            default to 1024-byte blocks for disk usage;
+                               used only with -s and per directory totals
+  -l                         use a long listing format
+  -L, --dereference          when showing file information for a symbolic
+                               link, show information for the file the link
+                               references rather than for the link itself
+  -m                         fill width with a comma separated list of entries
+  -n, --numeric-uid-gid      like -l, but list numeric user and group IDs
+  -N, --literal              print entry names without quoting
+  -o                         like -l, but do not list group information
+  -p, --indicator-style=slash
+                             append / indicator to directories
+  -q, --hide-control-chars   print ? instead of nongraphic characters
+      --show-control-chars   show nongraphic characters as-is (the default,
+                               unless program is 'ls' and output is a terminal)
+  -Q, --quote-name           enclose entry names in double quotes
+      --quoting-style=WORD   use quoting style WORD for entry names:
+                               literal, locale, shell, shell-always,
+                               shell-escape, shell-escape-always, c, escape
+                               (overrides QUOTING_STYLE environment variable)
+  -r, --reverse              reverse order while sorting
+  -R, --recursive            list subdirectories recursively
+  -s, --size                 print the allocated size of each file, in blocks
+  -S                         sort by file size, largest first
+      --sort=WORD            sort by WORD instead of name: none (-U), size (-S),
+                               time (-t), version (-v), extension (-X)
+      --time=WORD            change the default of using modification times;
+                               access time (-u): atime, access, use;
+                               change time (-c): ctime, status;
+                               birth time: birth, creation;
+                             with -l, WORD determines which time to show;
+                             with --sort=time, sort by WORD (newest first)
+      --time-style=TIME_STYLE  time/date format with -l; see TIME_STYLE below
+  -t                         sort by time, newest first; see --time
+  -T, --tabsize=COLS         assume tab stops at each COLS instead of 8
+  -u                         with -lt: sort by, and show, access time;
+                               with -l: show access time and sort by name;
+                               otherwise: sort by access time, newest first
+  -U                         do not sort; list entries in directory order
+  -v                         natural sort of (version) numbers within text
+  -w, --width=COLS           set output width to COLS.  0 means no limit
+  -x                         list entries by lines instead of by columns
+  -X                         sort alphabetically by entry extension
+  -Z, --context              print any security context of each file
+  -1                         list one file per line.  Avoid '\n' with -q or -b
+      --help     display this help and exit
+      --version  output version information and exit
+
+The SIZE argument is an integer and optional unit (example: 10K is 10*1024).
+Units are K,M,G,T,P,E,Z,Y (powers of 1024) or KB,MB,... (powers of 1000).
+Binary prefixes can be used, too: KiB=K, MiB=M, and so on.
+
+The TIME_STYLE argument can be full-iso, long-iso, iso, locale, or +FORMAT.
+FORMAT is interpreted like in date(1).  If FORMAT is FORMAT1<newline>FORMAT2,
+then FORMAT1 applies to non-recent files and FORMAT2 to recent files.
+TIME_STYLE prefixed with 'posix-' takes effect only outside the POSIX locale.
+Also the TIME_STYLE environment variable sets the default style to use.
+
+Using color to distinguish file types is disabled both by default and
+with --color=never.  With --color=auto, ls emits color codes only when
+standard output is connected to a terminal.  The LS_COLORS environment
+variable can change the settings.  Use the dircolors command to set it.
+
+Exit status:
+ 0  if OK,
+ 1  if minor problems (e.g., cannot access subdirectory),
+ 2  if serious trouble (e.g., cannot access command-line argument).
+
+GNU coreutils online help: <https://www.gnu.org/software/coreutils/>
+Report any translation bugs to <https://translationproject.org/team/>
+Full documentation <https://www.gnu.org/software/coreutils/ls>
+or available locally via: info '(coreutils) ls invocation'
+```
+
+ChatGPT で逆引きすることもできる。
+
+プロンプト
+```
+Linux コマンドラインでファイルの削除を行いたいのですが、どのようにすればよいですか？
+```
+
+ChatGPT の応答
+![](/chatgpt-rm.png)
+
+<Callout>
+ChatGPT は Linux コマンドラインを操作したりプログラミングをするにあたって非常に有用なツールです。使い倒しましょう。
+</Callout>
+
+<Callout type="warning">
+ChatGPT では hallucination (本当のことのように虚偽の内容を応答すること) が確認されています。ChatGPT で得た情報をそのまま信じることはせず、必ず公式のマニュアルページや信頼できる情報源で確認してください。
+</Callout>
+## 標準入出力
+
+Linux ではコマンドへの入力と出力は抽象化されており、いろいろな方法で行うことができる。デフォルトでは、標準入出力はターミナル上で行われる。
+
+<Callout>
+Linux ではファイルディスクリプタを指定して標準入出力を行うことができます。ファイルディスクリプタは整数で表され、0 が標準入力、1 が標準出力、2 が標準エラー出力を指します。これらにはファイルディスクリプタという名前がついていますが、ファイルディスクリプタはファイルに限らず、デバイスやプロセスにも関連付けることができます。ターミナルや UNIX ドメインソケット等もファイルディスクリプタとして扱われます。
+
+ここでは、ファイルとターミナルへの入出力が同じような方法で行われることを理解しておけば十分です。
+</Callout>
+
+Linux には標準入力の内容をそのまま標準出力に渡すコマンドが存在する。
+`echo` コマンドを用いると、引数が標準入力として渡され、それがそのまま標準出力に渡される。
+
+```
+$ echo からおけ
+からおけ
+```
+
+`cat` コマンドを使うと、標準入力の内容をそのまま標準出力に渡すことができる。`cat` コマンドは本来複数ファイルの内容を連結 (concatenate) するコマンドである。
+
+```
+$ cat
+ねこ # キーボードで「ねこ」と入力する
+ねこ
+```
+
+### パイプ
+  
+`|` はパイプと呼ばれ、標準出力を標準入力に渡すための演算子である。以下の例では、`echo` コマンドの標準出力が `cat` コマンドの標準入力に渡される。
+  
+```
+$ echo わんわん | cat
+わんわん
+```
+
+```
+$ ls | cat
+my-file.txt
+my-project
+```
+
+`sort` コマンドを使うと標準入力から渡されたコマンドを辞書順にソートして標準出力に渡すことができる。
+```
+$ ls | sort
+my-file.txt
+my-project
+```
+
+`sort` コマンドに `-r` オプションを渡すと逆順にソートすることができる。
+```
+$ ls | sort -r
+my-project
+my-file.txt
+```
+
+標準出力と標準エラー出力のリダイレクトには `>` という記号を用いる。
+```
+$ ls > ls.txt
+```
+
+`cat` コマンドにファイル名を渡すと、そのファイルの内容を標準出力に渡すことができる。
+```
+$ cat ls.txt
+my-file.txt
+my-project
+```
+
+`>` はファイルを上書きするが、`>>` はファイルの末尾に追記する。
+```
+$ ls >> ls.txt
+$ cat ls.txt
+my-file.txt
+my-project
+my-file.txt
+my-project
+```
+
+### 問題
+`seq` というコマンドに数値を引数として渡すと標準出力に 1 からその数値までの数値を出力します。以下のことを実現してみてください。
+
+Q: 1 から 20 までの数値を降順にソートして `answer.txt` というファイルに書きこんでください。
+
+#### レギュレーション
+- Web 検索 OK。
+- ChatGPT も OK
+
+#### 答えの形式
+```
+$ cat answer.txt 
+20
+19
+18
+17
+16
+15
+14
+13
+12
+11
+10
+9
+8
+7
+6
+5
+4
+3
+2
+1
+```
+
+ヒント: このドキュメントには書いていない `sort` コマンドのオプションを使います。`sort` コマンドはデフォルトでは**辞書順**で内容をソートします。
+
+## その他のコマンド
+
+`mv` コマンドを使うと、ファイルを別の場所に移動できる。また、ファイル名を変更することもできる。
+
+```
+$ mv <source> <destination>
+```
+
+例
+```
+$ mv my-file.txt my-file2.txt # my-file.txt を my-file2.txt にリネームする
+```
+例
+```
+$ mv my-file2.txt my-project # my-file2.txt を my-project ディレクトリに移動する
+```
+
+`cp` コマンドを使うと、ファイルをコピーできる。
+
+```
+$ cp <source> <destination>
+```
+
+例
+```
+$ cp my-file2.txt my-file3.txt # my-file2.txt を my-file3.txt にコピーする
+```
+
+`scp` コマンドを使うと、SSH プロトコルを利用してリモートマシンにファイルをコピーできる。
+
+```
+$ scp <source> <destination>
+```
+
+例
+```
+$ scp my-file3.txt <ユーザー名>@<リモートマシンの IP アドレスまたはドメイン>:/home/username/my-project
+```
+
+`less` コマンドを使うと、巨大なファイルの内容をページ単位で閲覧できる。
+
+```
+$ less <file>
+```
+
+例
+```
+$ less /var/log/syslog
+```
+この画面は j キーを押すと下にスクロールし、k キーを押すと上にスクロールする。q キーを押すと閉じることができる。
+
+そのほかにも様々なコマンドが存在する。
+
+- `gzip` コマンドを使うと、ファイルを圧縮することができる。
+- `zless` コマンドを使うと、`gzip` 圧縮されたファイルを閲覧できる。
+- `zcat` コマンドを使うと、`gzip` 圧縮されたファイルの内容を標準出力に渡すことができる。
+- `grep` コマンドを使うと、標準入力から特定の文字列を含む行を抽出することができる。
+- `chmod` コマンドを使うと、ファイルやディレクトリの権限を変更することができる。
+- `top` コマンドを使うと、システムのリソース使用状況をリアルタイムで表示することができる。
+- `ps` コマンドを使うと、プロセスの情報を表示することができる。
+- `vim` や `nano` などのエディタを使うと、テキストファイルを編集することができる。
+- `sed` コマンドを使うと、テキストファイルの内容を置換することができる。
+- `awk` コマンドを使うと、テキストファイルの内容を加工することができる。
+- `cut` コマンドを使うと、テキストファイルの内容を切り取ることができる。
+- `exit` コマンドを使うと、シェルを終了することができる。
+
+## 心構え
+コマンドは大量にありますが、すべてを覚える必要はありません。必要な時に使い方を調べることができれば十分です。 
+
+
+## 権限
+
+読み取り権限、書き込み権限、実行権限の 3 つの権限が存在する。
+
 ## ソフトウェアのインストール
+
+ソフトウェアをインストールすることで、新たなコマンドを使えるようになります。バイオインフォマティクスで使用されるソフトウェアもコマンドとして提供されているものがほとんどです。
 
 一般的に、ソフトウェアは以下のような形式で配布されることが多い。
 
+- パッケージマネージャー
+  - Debian / Ubuntu などのディストリビューションには `apt` というパッケージマネージャーが搭載されています。
+  - CentOS / RHEL などのディストリビューションには `yum` というパッケージマネージャーが搭載されています。
+  - Mac の場合は `brew` というパッケージマネージャーが利用できます。
+- ソースコード
+  - 自分でビルドする必要があります。
 - インストーラー
+  - GUI で使用できるソフトウェアはこの形式が多いです。
 - バイナリファイル
+  - CPU のアーキテクチャや OS に依存することが多いです。
+  - JVM などのランタイム環境を必要とすることがあります。
+    - Trimmomatic はこれ
 - スクリプト
+  - Python や R、Perl などのスクリプト言語で書かれたスクリプトを実行することでインストールできます。
+  - 各スクリプト言語の処理系をインストールする必要があります。
 - コンテナ
+  - Docker や Singularity などのコンテナプラットフォームやランタイムを利用することが多いです。
 
-### PATH を通す
+## おすすめ書籍
+- 新しいLinuxの教科書 (https://www.sbcr.jp/product/4797380941/)
