@@ -1,0 +1,182 @@
+import { Callout } from 'nextra/components'
+
+# クオリティコントロールおよびアダプター配列のトリミング
+
+次世代シーケンサーから出力された生データとして `fastq` ファイルが得られたら、リードのクオリティコントロールを行う必要がある。
+それに加え、リードの末端にはアダプター配列が付加されていることがあるため、これをトリミングする必要がある。
+
+## この講習で扱うデータ
+
+- ある植物の DNA-Seq データ (ペアエンド、150bp)
+- 約 300,000 reads / sample にダウンサンプル済み
+- 10サンプル
+- `~/<name>/fastq` にシンボリックリンクを作成済み
+
+## 塩基配列のデータフォーマット
+
+### バイナリファイルとテキストファイル
+
+コンピュータ上で扱うデータは、大きく分けてバイナリ (binary) ファイルとテキストファイルに分類される。
+- バイナリファイルは 0,1 の二進数で表現されるデータであり、人間が直接読むことはできない。
+  - コンパイル済みのプログラム、画像、音声、圧縮済みファイル、PDF などが含まれる。
+- テキストファイルは、人間が直接読むことができるデータであり文字列や数字などが含まれる。
+  - プログラムのソースコードや設定ファイル、CSV ファイル、`.txt` ファイルなどが含まれる。
+
+テキストファイルは `cat` や `less` などのコマンドで中身を確認することができる。
+
+例: `cat` コマンドでファイルの中身を表示する
+```
+$ cat ~/.bashrc
+```
+
+例: `less` コマンドでファイルの中身を表示する
+```
+$ less /var/log/syslog
+```
+
+### 圧縮ファイルフォーマット
+
+テキストファイルが巨大である場合、ディスク容量や通信時の効率を考慮してファイルを圧縮することがある。ファイルの圧縮には `gzip` というコマンドが用いられる。
+
+例
+```
+$ python3 -c "for i in range(100000): print(f'Line No.{i}')" > temp.txt # 大きなファイルを作成
+$ ls -lh temp.txt
+-rw-r--r-- 1 hirosuke hirosuke 1.4M Feb 13 10:56 temp.txt # 1.4MiB のファイルができた
+$ cat temp.txt
+Line No.0
+Line No.1
+.
+.
+Line No.99998
+Line No.99999
+$ gzip temp.txt # ファイルを圧縮
+$ ls -lh temp.txt.gz
+-rw-r--r-- 1 hirosuke hirosuke 234K Feb 13 10:56 temp.txt.gz # 234KiB に圧縮された
+$ cat temp.txt.gz
+# わけのわからない出力がでる
+$ zcat temp.txt.gz # 圧縮ファイルの中身を表示
+Line No.0
+Line No.1
+.
+.
+Line No.99998
+Line No.99999
+$ gzip -d temp.txt.gz # 解答
+$ ls -lh temp.txt
+-rw-r--r-- 1 hirosuke hirosuke 1.4M Feb 13 10:56 temp.txt # 元のファイルに戻った
+```
+
+### FASTQ ファイルフォーマット
+
+ファイルフォーマットの Specification (仕様) はおそらく以下 
+- Cock PJ, Fields CJ, Goto N, Heuer ML, Rice PM. The Sanger FASTQ file format for sequences with quality scores, and the Solexa/Illumina FASTQ variants. Nucleic Acids Res. 2010 Apr;38(6):1767-71. doi: 10.1093/nar/gkp1137. Epub 2009 Dec 16. PMID: 20015970; PMCID: PMC2847217. (https://www.ncbi.nlm.nih.gov/pmc/articles/PMC2847217/)
+
+FASTQ ファイル (`.fastq` ファイル) は、シーケンスリードの生データを格納するためのフォーマットである。FASTQ ファイルにはリードの塩基配列とそのクオリティスコアが併記されている。FASTQ ファイルはサイズがかなり大きくなるので、通常は圧縮された状態で配布される。バイオインフォマティクスで使用されるソフトウェアは圧縮された FASTQ ファイルを直接読み込めるものが多い。
+
+例: 
+```
+$ zless data/sample1_R1.fastq.gz # zless コマンドを使うと、gzip 圧縮されたファイルを less できる
+@A00609:579:H7HHKDSX5:1:1101:17653:1000 1:N:0:TATGTCTC+ACACTCAC
+NTCACCGCGGTAAGTGGATAAATCTGCACGTCCATCACAGGATCATACATCCTCCATGGTTCTCTGATTCCATTGAACACAAGGGCTTCATTTACGCTGTCTCTTATACACATCTCCGAGCCCACGAGACTATGTCTCATCTCGGATGCC
++
+#FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF:FFFFFFFFFFFFF:FFFFFFFFFFFFFFFFFFFFFFFFFF:FFFFFFFFF,FF,FFFFF
+@A00609:579:H7HHKDSX5:1:1101:23637:1000 1:N:0:TATGTCTC+ACACTCAC
+NGCGACAGATCGACCTACTCCTACAGAGAGATGGTGTGTAGTGTACGATTTTAGCCGCGAGAGTCGGTGCATCCTCTCGTTTCCGGGCGTCCGGTAGGGACACGCGGACAGCTGCCACGCCCGCTCCTGACCAGCCTGTCTCTTATACAC
++
+#FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF,FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF
+@A00609:579:H7HHKDSX5:1:1101:3757:1016 1:N:0:TATGTCTC+ACACTCAC
+NGCGGCAATAGTGCAGAAACAATTTTTTGTTGCGTACTGCTCACGTTGTGGCACTTCTACCGCGTTGTTTCACGATTGTGCACTCGTGGACGCATCCTGCACCCCTCCCCTCACGACCCCCTCTTTCACTCACTGTCTCTTATACACATC
+```
+
+FASTQ ファイルは以下のような構造になっている
+- 4行でひとつのリード情報を格納する
+- 1行目: リードの識別子 (ID)
+- 2行目: リードの塩基配列
+- 3行目: `+` (区切り文字)
+- 4行目: 各塩基のクオリティスコア (Phred33 形式)
+
+### Phred33 形式
+各塩基のクオリティスコア `Q` は以下の形式で計算される。
+
+```
+Q = -10 * log10(P)
+```
+
+ここで、`P` はシーケンシングエラーの確率を表す。
+
+`Q` に33を足し、その数値が示す ASCII コードがクオリティスコアとして FASTQ ファイルに記載される。
+
+例:
+- Phred33 形式のクオリティスコアが `F` の場合、`F` の ASCII コードは 70 なので、`Q = 70 - 33 = 37` となる。よって、`P` は10のマイナス3.7乗 (0.0001995) となる。
+
+## Trimmomatic
+
+Bolger, A. M., Lohse, M., & Usadel, B. (2014). Trimmomatic: A flexible trimmer for Illumina Sequence Data. Bioinformatics, btu170.    
+http://www.usadellab.org/cms/?page=trimmomatic
+
+Trimmomatic を用いてリードのトリミングを行う。
+
+ここでは、Trimmomatic で以下の 3 種類の処理を行う。
+- `ILLUMINACLIP`: アダプター配列のトリミング。ここでは、`adapter/sample<sample-number>-adapter.fasta` というファイルを使用する。
+  - 今回はアダプター配列がわかっているのでこのような `.fasta` ファイルを用意したが、アダプター配列がわからない場合は Trimmomatic に付属のアダプター配列を用いることができる (要検証)。
+- `SLIDINGWINDOW`: クオリティスコアが一定以上のリードを残す。
+- `MINLEN`: トリミング後のリードの最小長を指定する。
+
+他にも可能な処理が存在する。
+
+<Callout>
+このドキュメントで示したパラメータをそのまま使用して解析を進めるのは危険です。実際の解析の際は、データの性質や解析の方向性に合わせてパラメータをチューニングしたり、処理を増やす / 減らすことが必要です。
+</Callout>
+
+### FASTA ファイル
+ここでは、アダプター配列は FASTA ファイルで指定した。FASTA ファイルは塩基配列情報を格納するデータフォーマットであり、以下の形式であらわされる。
+
+```
+>Sequence1
+GCGATCGATCGATGATCTATTATTAAAGGCTCTACAG
+>Sequence2
+AATGATACGGCGACCACCGAGATCTACACGTGAGTGT
+```
+
+これは、`Sequence1` という名前の塩基配列 `GCGATCGATCGATGATCTATTATTAAAGGCTCTACAG` と `Sequence2` という名前の塩基配列 `AATGATACGGCGACCACCGAGATCTACACGTGAGTGT` を格納している。
+
+### Trimmomatic の実行
+
+Trimmomatic は Java で書かれているので、実行には Java のランタイム (JVM) が必要である。これは JRE や JDKとして配布されている。
+
+```
+$ java -jar ../Trimmomatic-0.39/trimmomatic-0.39.jar 
+Usage: 
+       PE [-version] [-threads <threads>] [-phred33|-phred64] [-trimlog <trimLogFile>] [-summary <statsSummaryFile>] [-quiet] [-validatePairs] [-basein <inputBase> | <inputFile1> <inputFile2>] [-baseout <outputBase> | <outputFile1P> <outputFile1U> <outputFile2P> <outputFile2U>] <trimmer1>...
+   or: 
+       SE [-version] [-threads <threads>] [-phred33|-phred64] [-trimlog <trimLogFile>] [-summary <statsSummaryFile>] [-quiet] <inputFile> <outputFile> <trimmer1>...
+   or: 
+       -version
+```
+
+Trimmomatic は本来 1 サンプルにつき 1回コマンドを打って実行する必要があるが、今回は10サンプルあるのでシェルスクリプトの `for` 文を使用して一気に処理する。
+
+```bash
+#!/bin/bash
+
+CLEAN_FQ_DIR=clean
+
+mkdir $CLEAN_FQ_DIR
+
+for ((i=1; i<=10; i++))
+do
+	java -jar ../Trimmomatic-0.39/trimmomatic-0.39.jar PE -phred33 -threads 2 \
+		data/sample${i}_R1.fastq.gz data/sample${i}_R2.fastq.gz \
+		${CLEAN_FQ_DIR}/sample${i}_R1_paired.fastq.gz ${CLEAN_FQ_DIR}/sample${i}_R1_unpaired.fastq.gz \
+		${CLEAN_FQ_DIR}/sample${i}_R2_paired.fastq.gz ${CLEAN_FQ_DIR}/sample${i}_R2_unpaired.fastq.gz \
+		ILLUMINACLIP:adapters/sample${i}-adapter.fasta:2:30:10 SLIDINGWINDOW:4:30 MINLEN:50
+done
+```
+
+実行
+
+```bash
+$ chmod +x trimmomatic.sh # 実行権限を付与
+$ ./trimmomatic.sh
+```

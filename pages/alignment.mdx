@@ -1,0 +1,111 @@
+# リードのアラインメント
+
+この章では、クオリティコントロール済みのリードを参照配列にアラインメントする。次世代シーケンサーから出力されたリードがどの染色体のどの部分に相当するのかを調べる。
+
+## この講習で扱うデータ
+- ある植物の公開参照配列の FASTA ファイル (Web 上で入手可能、シンボリックリンク作成済み)
+- https://www.ncbi.nlm.nih.gov/datasets/genome/GCF_002575655.2/
+
+```
+$ zless refseq/GCF_002575655.2.fasta.gz # 非常にサイズが大きいので、絶対に zless で開くこと
+```
+
+## BWA を用いたアラインメント
+
+マニュアル: https://bio-bwa.sourceforge.net/bwa.shtml
+
+```
+$ bwa
+
+Program: bwa (alignment via Burrows-Wheeler transformation)
+Version: 0.7.17-r1198-dirty
+Contact: Heng Li <hli@ds.dfci.harvard.edu>
+
+Usage:   bwa <command> [options]
+
+Command: index         index sequences in the FASTA format
+         mem           BWA-MEM algorithm
+         fastmap       identify super-maximal exact matches
+         pemerge       merge overlapping paired ends (EXPERIMENTAL)
+         aln           gapped/ungapped alignment
+         samse         generate alignment (single ended)
+         sampe         generate alignment (paired ended)
+         bwasw         BWA-SW for long queries (DEPRECATED)
+
+         shm           manage indices in shared memory
+         fa2pac        convert FASTA to PAC format
+         pac2bwt       generate BWT from PAC
+         pac2bwtgen    alternative algorithm for generating BWT
+         bwtupdate     update .bwt to the new format
+         bwt2sa        generate SA from BWT and Occ
+
+Note: To use BWA, you need to first index the genome with `bwa index'.
+      There are three alignment algorithms in BWA: `mem', `bwasw', and
+      `aln/samse/sampe'. If you are not sure which to use, try `bwa mem'
+      first. Please `man ./bwa.1' for the manual.
+```
+
+参照配列にインデックスを張る (アラインメント時にプログラムが高速にデータを処理できるようにするための前処理)
+```
+$ bwa index refseq/GCF_002575655.2.fasta.gz # このコマンドは 1 日以上かかるので事前に実行済み
+```
+
+リードを参照配列にアラインメントする。ここでは、10サンプルあるのでシェルスクリプトで `for` 文を用いて一気に処理する。
+
+```bash
+#!/bin/bash
+
+CLEAN_FQ_DIR="clean"
+BAM_DIR="bam"
+
+if [ ! -d "$BAM_DIR" ]; then
+	mkdir "$BAM_DIR"
+else
+	rm "$BAM_DIR"/*
+fi
+
+for ((i=1; i<=10; i++))
+do
+	bwa mem -t 2 -R '@RG\tID:${id}\tSM:${id}\tPL:ILLUMINA' \
+		refseq/GCF_002575655.2_Aet_v5.0_genomic.fna \
+		${CLEAN_FQ_DIR}/sample${i}_R1_paired.fastq.gz \
+		${CLEAN_FQ_DIR}/sample${i}_R2_paired.fastq.gz \
+		| samtools view -bF4 > ${BAM_DIR}/sample${i}.bam
+done			
+```
+
+BWA は標準出力にアラインメント結果を出力するので、パイプ `|` でアラインメント結果を `samtools view` に渡して BAM ファイルに変換する。`samtools view` では `-b` オプション (BAM 形式で出力させる) と `-F 4` オプション (SAM ファイルの `FLAG` フィールドで `0x0004` (16進数表記) のビットが立っているアラインメントを除去する) オプションを付与する。
+
+## SAM フォーマットと BAM フォーマット
+
+リードのアラインメント結果は SAM フォーマットというテキストファイルで表現される。それに対して、BAM フォーマットは SAM ファイルを BGZF という形式で圧縮したバイナリファイルである。
+
+ファイルフォーマットの仕様は公開されており、以下のリポジトリで管理されている。
+- https://github.com/samtools/hts-specs
+
+また、PDF 形式のドキュメントも公開されている。
+- https://samtools.github.io/hts-specs/
+- https://samtools.github.io/hts-specs/SAMv1.pdf
+
+## SAMtools
+
+SAM / BAM ファイルは SAMtools という CLI ツールを用いて操作することができる。
+
+- https://github.com/samtools/samtools
+
+例: BAM ファイルを SAM 形式に変換して標準出力に出力する。出力が非常に大きいので、`less` コマンドにパイプする。
+```
+$ samtools view -h bam/sample1.bam | less
+```
+
+例: BAM ファイルのヘッダ情報を表示する。
+```
+$ samtools view -H bam/sample1.bam
+```
+
+## Reference
+- Li H. and Durbin R. (2009) Fast and accurate short read alignment with Burrows-Wheeler transform. Bioinformatics, 25, 1754-1760. [PMID: 19451168]. (if you use the BWA-backtrack algorithm)
+- Li H. and Durbin R. (2010) Fast and accurate long-read alignment with Burrows-Wheeler transform. Bioinformatics, 26, 589-595. [PMID: 20080505]. (if you use the BWA-SW algorithm)
+- Li H. (2013) Aligning sequence reads, clone sequences and assembly contigs with BWA-MEM. arXiv:1303.3997v2 [q-bio.GN]. (if you use the BWA-MEM algorithm or the fastmap command, or want to cite the whole BWA package)
+- https://bio-bwa.sourceforge.net/
+
