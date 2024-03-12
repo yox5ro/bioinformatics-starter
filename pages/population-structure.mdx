@@ -1,0 +1,78 @@
+# 集団構造解析
+
+この章では、SNP データがあるときに行える解析の一例として集団構造解析を紹介する。
+
+## 集団構造とは
+
+生物集団には、遺伝的な多様性が存在する。これらの多様性は地理的な障壁や選択、移住などによって生じ、集団構造と呼ばれる。集団構造解析では、多型データからこれらの集団構造を推定することができる。
+
+集団構造解析のソフトウェアには、MCMC (マルコフ連鎖モンテカルロ法) による [STRUCTURE](https://web.stanford.edu/group/pritchardlab/structure_software/release_versions/v2.3.4/html/structure.html) や [ADMIXTURE](https://dalexander.github.io/admixture/index.html), 行列分解に基づく [sNMF](http://membres-timc.imag.fr/Olivier.Francois/snmf/index.htm), 主成分分析などがある。
+
+ここでは、主成分分析を用いて集団構造解析を行う。
+
+RStudio を起動し、以下のファイルを実行する。
+
+`pca.R`
+```RScript
+require(vcfR)
+require(pcaMethods)
+
+seed <- 123
+set.seed(seed)
+first_pc <- 1
+last_pc <- first_pc + 1
+
+vcf_filename <- "/<path>/<to>/snp_filtered.vcf.gz"
+
+# prepare genotype data
+vcf <- read.vcfR(vcf_filename)
+chrom <- getCHROM(vcf)
+chrom <- sub("NC_053035.2", "1", chrom)
+chrom <- sub("NC_053036.2", "2", chrom)
+chrom <- sub("NC_053037.2", "3", chrom)
+chrom <- sub("NC_053038.2", "4", chrom)
+chrom <- sub("NC_053039.2", "5", chrom)
+chrom <- sub("NC_053040.2", "6", chrom)
+chrom <- sub("NC_053041.2", "7", chrom)
+chrom <- sub("^N.*$", "100", chrom)
+pos <- getPOS(vcf)
+genotype <- extract.gt(vcf)
+genotype.score <- matrix(NA, nrow(genotype), ncol(genotype))
+genotype.score[genotype == "0/0"] <- -1
+genotype.score[genotype == "0/1"] <- 0
+genotype.score[genotype == "1/1"] <- 1
+rownames(genotype.score) <- rownames(genotype)
+colnames(genotype.score) <- colnames(genotype)
+genotype.score <- t(genotype.score)
+
+# remove column with all NaN
+genotype_for_pca <- genotype.score[, colSums(is.na(genotype.score)) < nrow(genotype.score)]
+
+# filter by NaN rate
+genotype_for_pca <- genotype_for_pca[, colSums(is.na(genotype_for_pca)) != nrow(genotype_for_pca)]
+rownames(genotype_for_pca) <- sub(".*?_", "", rownames(genotype_for_pca))
+
+# sort by ID
+genotype_for_pca <- genotype_for_pca[order(row.names(genotype_for_pca)),]
+# execute probablistic principal component analysis
+# takes a few minutes
+pca <- pcaMethods::pca(genotype_for_pca, "ppca", nPcs = 4, seed = seed)
+pca_scores <- scores(pca)
+
+par(pty="s")
+first_pc_contrib = R2cum(pca)[first_pc]
+if (first_pc != 1) {
+  first_pc_contrib = first_pc_contrib - R2cum(pca)[first_pc - 1]
+}
+second_pc_contrib = R2cum(pca)[last_pc] - R2cum(pca)[first_pc]
+plot(pca_scores[, first_pc:last_pc],
+     pch = 20, 
+     xlab = paste("PC", first_pc, " (", round(first_pc_contrib * 100, 2), "%)", sep = ""),
+     ylab = paste("PC",  last_pc, " (", round(second_pc_contrib * 100, 2), "%)", sep = "")
+)
+
+grid()
+```
+
+## References
+R のコードは [R で GWAS と GS, 岩田洋佳](https://www.iu.a.u-tokyo.ac.jp/lectures/AG16/180509/20180509.pdf) を参考にしています。

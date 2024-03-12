@@ -1,0 +1,62 @@
+# SNP コール
+
+この章では、アラインメント結果を利用して SNP コールを行う。
+
+SNP コールのソフトウェアには、GATK、bcftools mpileup などが存在するが、ここでは bcftools mpileup を利用する。GATK は正確さが高いが、実行に時間がかかる。bcftools mpileup は GATK よりも速い。用いるデータセットにも依存するが、正確さは bcftools mpileup でも十分である。
+
+## SNP コールの例
+
+`snp-call.sh`
+```bash
+#!/bin/bash
+
+BAM_FILES=(bam/sample*_markdup.bam)
+VCF_DIR=vcf
+REF_SEQ_PATH=./refseq/GCF_002575655.2_Aet_v5.0_genomic.fna
+
+if [ -d "$VCF_DIR" ]; then
+        rm -r $VCF_DIR
+fi
+mkdir $VCF_DIR
+
+# SNP コールを行う
+# マッピングクオリティ (MAPQ) やリードのデプス (DP) などのフィルタリングを行う
+bcftools mpileup -a AD -B -q 20 -Q 0 -A -O u -f ${REF_SEQ_PATH} ${BAM_FILES[*]} | \
+        bcftools view -v snps | bcftools call -G - -mv - | \
+        bcftools view --threads 2 -i 'DP>=5 & MQ >= 40' -o ${VCF_DIR}/snp.vcf.gz
+
+# SNP のフィルタリングを行う
+vcftools --gzvcf ${VCF_DIR}/snp.vcf.gz --recode --recode-INFO-all --stdout \
+        --max-missing 0.8 --maf 0.05 | gzip -c > ${VCF_DIR}/snp_filtered.vcf.gz
+```
+
+スクリプトの実行
+```bash
+$ ./snp-call.sh
+```
+
+ここでは SNP のフィルタリング基準を以下のように設定している。
+- 最大欠損率 20% (`--max-missing`)
+- マイナーアリル頻度 5% (`--maf`)
+
+これらの値を厳しくすると得られる SNP の数が減少してしまう。しかし、厳しくしないとクオリティの低い SNP が多く残ってしまい、解析結果に影響を及ぼす。
+
+フィルタリング基準の設定は一般的に難しく、データセットの性質や解析の目的によって試行錯誤を行う必要がある。例えば、集団構造解析やゲノムワイドな QTL 解析を行う場合では SNP の数はそこまで多くなくてもよい。一方で、 GWAS を行う場合では SNP の数が多いほど検出力が上がる (要検証)。 
+
+また、[Beagle](https://faculty.washington.edu/browning/beagle/beagle.html) などの imputation 用ソフトウェアを用いることで、得られた VCF ファイルの欠損部分を統計的に補完することも可能である。このソフトウェアでは、haplotype phasing を経て imputation を行う。
+
+## VCF ファイル
+
+SNP データは VCF ファイルとして得ることができる。VCF ファイルは集団の多型情報を格納するためにファイルフォーマットで、SAMtools の開発チームが規格を管理している。
+
+- [VCF ファイルフォーマットの仕様](https://samtools.github.io/hts-specs/VCFv4.3.pdf)
+
+
+VCFファイルは、集団構造解析や GWAS などの解析に利用することができる。解析ソフトウェアによって入力ファイルフォーマット形式が異なるため、それらに合わせた形式に変換することが必要である。[Plink](https://www.cog-genomics.org/plink2/) というソフトウェアは、さまざまな形式のファイルに相互に変換する方法を提供している。
+
+例 `hoge.vcf.gz` というファイルを `tped` / `tfam` 形式に変換するコマンド (plink バイナリのパスが `$PATH` に含まれている必要がある)
+```
+$ plink --vcf hoge.vcf.gz --out hoge --const-fid --allow-extra-chr --recode transpose
+```
+
+ファイルフォーマットの変換の際には、sed, awk などのストリームで動作するスクリプト言語や `cut`, `grep` などのコマンドも有用である。

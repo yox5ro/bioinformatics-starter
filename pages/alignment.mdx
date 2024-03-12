@@ -59,19 +59,19 @@ CLEAN_FQ_DIR="clean"
 BAM_DIR="bam"
 
 if [ ! -d "$BAM_DIR" ]; then
-	mkdir "$BAM_DIR"
+        mkdir "$BAM_DIR"
 else
-	rm "$BAM_DIR"/*
+        rm "$BAM_DIR"/*
 fi
 
 for ((i=1; i<=10; i++))
 do
-	bwa mem -t 2 -R '@RG\tID:${id}\tSM:${id}\tPL:ILLUMINA' \
-		refseq/GCF_002575655.2_Aet_v5.0_genomic.fna \
-		${CLEAN_FQ_DIR}/sample${i}_R1_paired.fastq.gz \
-		${CLEAN_FQ_DIR}/sample${i}_R2_paired.fastq.gz \
-		| samtools view -bF4 > ${BAM_DIR}/sample${i}.bam
-done			
+        bwa mem -t 16 -R "@RG\tID:sample${i}\tSM:sample${i}\tPL:ILLUMINA" \
+                refseq/GCF_002575655.2_Aet_v5.0_genomic.fna \
+                ${CLEAN_FQ_DIR}/sample${i}_R1_paired.fastq.gz \
+                ${CLEAN_FQ_DIR}/sample${i}_R2_paired.fastq.gz \
+                | samtools view -bF4 > ${BAM_DIR}/sample${i}.bam
+done	
 ```
 
 BWA は標準出力にアラインメント結果を出力するので、パイプ `|` でアラインメント結果を `samtools view` に渡して BAM ファイルに変換する。`samtools view` では `-b` オプション (BAM 形式で出力させる) と `-F 4` オプション (SAM ファイルの `FLAG` フィールドで `0x0004` (16進数表記) のビットが立っているアラインメントを除去する) オプションを付与する。
@@ -101,6 +101,49 @@ $ samtools view -h bam/sample1.bam | less
 例: BAM ファイルのヘッダ情報を表示する。
 ```
 $ samtools view -H bam/sample1.bam
+```
+
+## アラインメント結果のフィルタリングと PCR duplicates の除去 (マーキング)
+
+SAMtools を用いてアラインメント結果をフィルタリングする。
+
+`filter-read.sh`
+```bash
+#!/bin/bash
+
+BAM_DIR="bam"
+CHROMOSOME_IDS=("NC_053035.2" "NC_053036.2" "NC_053037.2" "NC_053038.2" "NC_053039.2" "NC_053040.2" "NC_053041.2") # 染色体 ID
+
+cd $BAM_DIR
+
+for ((i=1; i<=10; i++))
+do
+        # alignment をフィルターする
+        ## BAM ファイルをソートする
+        samtools sort -@ 2 -o sample${i}_sorted.bam sample${i}.bam
+        ## BAM ファイルに CSI インデックスをつける
+        samtools index -@ 2 -c -o sample${i}_sorted.bam.csi sample${i}_sorted.bam
+        ## BAM ファイルを filtering expression に従ってフィルタし、特定の染色体のリードのみを抽出し、ソートする
+        samtools view -e '((pnext + 150) - pos) >= 70 && ((pnext + 150) - pos) <= 600' \
+                -h sample${i}_sorted.bam $(IFS=" "; echo "${CHROMOSOME_IDS[*]}") | \
+                samtools sort -@ 2 -o sample${i}_filtered.bam -
+
+        # PCR duplicates にマークをつける
+        # リード名でソート → fixmate で MC / ms タグをつける → 物理位置でソート → PCR duplicates をマークする
+        samtools sort -@ 2 -n -o - sample${i}_filtered.bam | \
+                samtools fixmate -m - - | \
+                samtools sort - | \
+                samtools markdup -@ 2 -r - sample${i}_markdup.bam
+
+        rm sample${i}_sorted.bam sample${i}_sorted.bam.csi sample${i}_filtered.bam
+done
+
+cd -
+```
+
+スクリプトの実行
+```
+$ ./filter-read.sh
 ```
 
 ## Reference
